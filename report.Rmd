@@ -1,0 +1,48 @@
+---
+title: "Jakarta coal power plants contribution"
+author: "Hubert Thieriot - CREA"
+date: "2023-07-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Coal power plants
+
+## Power plants considered
+
+```{r, echo=FALSE, fig.height=5, fig.width=10}
+plants <- get_plants(as_sf=F)
+knitr::kable(plants)
+```
+
+## Dispersion modeling
+
+We use HYSPLIT to model dispersion from each coal power plant, with the following parameters :
+- constant emission rate
+- each particle followed for four days
+- released at height based on stack height and plume rise
+
+Below is dispersion modeling example for Soralaya power plant on 1 January 2023.
+    
+```{r, echo=FALSE, fig.height=5, fig.width=10}
+knitr::include_graphics("results/soralaya_20230201.png")
+```
+    
+    
+
+## Attribution
+
+We then compute density of particles emitted by each power plant at each receptor location. The numbers obtained are transformed into a meaningful unit: µg/m3 for each µg emitted within a day by the power plant. For instance, if a power plants emits 10 tonnes of PM2.5 in a day, and the indicated contribution number is 1e-10, 
+
+```{r, echo=FALSE, fig.height=5, fig.width=10}
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+knitr::include_graphics("results/contribution.png")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

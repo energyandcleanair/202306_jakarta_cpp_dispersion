@@ -1,20 +1,38 @@
-get_dispersions <- function(plants_sf, dates, cache_folder='cache', plot=F, plot_folder='results'){
+get_dispersions <- function(plants, dates,
+                            cache_folder='cache',
+                            cache_only=F,
+                            plot=F,
+                            plot_folder='results',
+                            met_type='gdas1',
+                            duration_hours=120){
 
-  pbapply::pblapply(seq(nrow(plants_sf)), function(i){
+  pbapply::pblapply(seq(nrow(plants)), function(i){
 
-    location_id <- plants_sf$plants[[i]]
+    location_id <- plants$plants[[i]]
     print(location_id)
-    geometry <- plants_sf$geometry[i]
+    geometry <- plants$geometry[i]
 
-    stack_height <- plants_sf$stack_height[[i]]
-    release_height_low <- plants_sf$release_height_low[[i]]
+    stack_height <- plants$stack_height[[i]]
+    release_height_low <- plants$release_height_low[[i]]
     height <- round(release_height_low * 2 - stack_height)
 
     pbapply::pblapply(dates, function(date){
+      if(cache_only){
+        file_cache <- file.path(cache_folder,
+                                   creatrajs::dispersion.cache_filename(location_id,
+                                                             met_type,
+                                                             height,
+                                                             duration_hours,
+                                                             date, "RDS"))
+        if(!file.exists(file_cache)){
+          return(NULL)
+        }
+      }
+
       dispersion <- dispersion.get(dates=date,
                                    location_id=location_id,
                                    geometry=geometry,
-                                   met_type="gdas1",
+                                   met_type=met_type,
                                    heights=height,
                                    duration_hour=duration_hours,
                                    direction="forward",
@@ -30,14 +48,18 @@ get_dispersions <- function(plants_sf, dates, cache_folder='cache', plot=F, plot
       }
 
       dispersion <- dispersion %>%
-        mutate(date_reception = as.Date(date) + lubridate::hours(hour - 1))
+        mutate(date_reception = as.Date(date) + lubridate::hours(hour))
 
       emission_date <- dispersion %>%
         group_by(particle_i) %>%
         summarise(date_emission=min(as.Date(date) + lubridate::hours(hour - 1)))
 
       dispersion <- dispersion %>%
-        left_join(emission_date)
+        left_join(emission_date) %>%
+        mutate(age = date_reception - date_emission) %>%
+        # Keep all particles for the exact same time so that
+        # At any point in time the number of particles is constant
+        filter(age <= duration_hours)
 
       if(plot){
         plot_dispersion(data=dispersion,
@@ -53,4 +75,7 @@ get_dispersions <- function(plants_sf, dates, cache_folder='cache', plot=F, plot
       mutate(location_id = location_id)
     }) %>%
   bind_rows()
+
+
+
 }
