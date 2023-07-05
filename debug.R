@@ -1,28 +1,19 @@
 
-# debug creatrajs
 
-i=10
-location_id <- plants$plants[[i]]
-print(location_id)
-geometry <- plants$geometry[i]
-
-stack_height <- plants$stack_height[[i]]
-release_height_low <- plants$release_height_low[[i]]
-height <- round(release_height_low * 2 - stack_height)
-
-d <- hysplit.dispersion(date = date, geometry = geometry,
-                        met_type = met_type, duration_hour = duration_hour,
-                        height = height, timezone = timezone, direction = direction)
+# List cached files by plant
+files <- list.files('cache', '*.RDS')
+files %>%
+  str_split('\\.') %>%
+  # bind into a dataframe
+  map_df(~as.data.frame(t(.))) %>%
+  # rename columns
+  set_names(c('type', 'plant', 'net', 'height', 'duration_hours', 'date', 'extension')) %>%
+  group_by(plant, month=floor_date(as.Date(date, format='%Y%m%d'), 'month')) %>%
+  count()
 
 
-
-
-count <- dispersions %>%
-  group_by(location_id, date_reception) %>%
-  summarise(count=n())
-
-ggplot(count) +
-  geom_line(aes(date_reception, count, col=location_id))
+  unlist() -> file_info
+location_id=file_info[2]
 
 
 library(tidyverse)

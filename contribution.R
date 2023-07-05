@@ -10,21 +10,24 @@
 #' @export
 #'
 #' @examples
-get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jakarta"){
+get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jakarta", density_res=1000){
 
   crs_utm = 32748
 
   # Assert there is only one plant
   if(length(unique(dispersions$location_id)) > 1){
     # Run and concatenate for each plant
-    contributions <- pbapply::pblapply(unique(dispersions$location_id), function(location_id){
-      get_contributions(dispersions %>%
+    contributions <- pbapply::pblapply(
+      unique(dispersions$location_id),
+      function(location_id){
+        get_contributions(dispersions %>%
                           filter(location_id == !!location_id),
-                        receptors,
-                        height_m=height_m,
-                        tz=tz)
+                          receptors,
+                          height_m=height_m,
+                          tz=tz)
     }) %>%
       bind_rows()
+
     return(contributions)
   }
 
@@ -68,7 +71,7 @@ get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jak
   densities <- pbapply::pblapply(
     split(particles, date_group(particles$date_reception)),
     function(d_day){
-      MASS::kde2d(d_day$x, d_day$y, n=c(100, 100),
+      MASS::kde2d(d_day$x, d_day$y, n=c(density_res, density_res),
                   lims=c(min(d_day$x), max(d_day$x),
                          min(d_day$y), max(d_day$y)) *
                     c(0.9, 1.1, 0.9, 1.1))

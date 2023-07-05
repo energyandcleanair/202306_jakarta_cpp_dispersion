@@ -9,7 +9,8 @@ diagnose_dispersions <- function(dispersions,
     summarise(count=n())
 
   ggplot(count) +
-    geom_line(aes(date_reception, count, col=location_id))
+    geom_line(aes(date_reception, count, col=location_id)) +
+    facet_wrap(~location_id)
 
   ggsave(file.path(diagnostics_folder, 'dispersions_count.png'))
 

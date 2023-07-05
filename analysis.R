@@ -18,7 +18,7 @@ source('./diagnostics.R')
 
 
 date_from <- as.Date("2023-01-01")
-date_to <- as.Date("2023-01-15")
+date_to <- as.Date("2023-01-08")
 dates <- seq.Date(date_from, date_to, by="day")
 folder <- "results/jakarta"
 dir.create(folder, F, T)
@@ -28,7 +28,7 @@ plants <- data.get_plants(as_sf=T)
 receptors <- data.get_receptors(as_sf=T)
 
 dispersions <- get_dispersions(
-  plants = plants[seq(1),],
+  plants = plants,
   dates = dates,
   cache_only=T)
 
@@ -39,7 +39,6 @@ plot_dispersions(dispersions=dispersions,
                  dates=sample(dates, 3),
                  folder='results')
 
-
 # Diagnostics
 diagnose_dispersions(dispersions)
 
@@ -48,14 +47,23 @@ saveRDS(dispersions, 'cache/dispersions.RDS')
 dispersions <- readRDS('cache/dispersions.RDS')
 
 # Compute contributions
-contributions <- get_contributions(
-  dispersions=dispersions %>% filter(location_id=='Suralaya'),
+contributions_100 <- get_contributions(
+  dispersions=dispersions,
   receptors=receptors,
-  height_m=100
+  height_m=100,
+  density_res=100
 )
 
-saveRDS(contributions, 'cache/contributions.RDS')
+contributions_1000 <- get_contributions(
+  dispersions=dispersions,
+  receptors=receptors,
+  height_m=100,
+  density_res=1000
+)
+
+saveRDS(contributions_1000, 'cache/contributions.RDS')
 contributions <- readRDS('cache/contributions.RDS')
 
 # Plot results
-plot_contributions(contributions, folder='results')
+plot_contributions(contributions_100, folder='results', suffix='_100')
+plot_contributions(contributions_1000, folder='results', suffix='_1000')

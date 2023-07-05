@@ -35,11 +35,7 @@ knitr::include_graphics("results/soralaya_20230201.png")
 
 ## Attribution
 
-We then compute density of particles emitted by each power plant at each receptor location. The numbers obtained are transformed into a meaningful unit: µg/m3 for each µg emitted within a day by the power plant. For instance, if a power plants emits 10 tonnes of PM2.5 in a day, and the indicated contribution number is 1e-10, 
-
-```{r, echo=FALSE, fig.height=5, fig.width=10}
-
-You can also embed plots, for example:
+We then compute density of particles emitted by each power plant at each receptor location. The numbers obtained are transformed into a meaningful unit: µg/m3 for each µg emitted within a day by the power plant. For instance, if a power plants emits 10 tonnes of PM2.5 in a day, and the indicated contribution number is 1e-15, the resulting concentration at the receptor location is 0.01 µg/m3 (1e13 * 1e-15).
 
 ```{r pressure, echo=FALSE}
 knitr::include_graphics("results/contribution.png")

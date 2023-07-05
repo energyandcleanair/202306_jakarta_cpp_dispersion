@@ -33,7 +33,7 @@ plot_dispersions <- function(dispersions,
   for(date in dates){
 
     data <- sf::st_as_sf(
-      dispersions %>% filter(as.Date(date_emission) == !!date),
+      dispersions %>% filter(as.Date(date_emission) == !!as.Date(date)),
       coords=c('lon', 'lat'), crs=4326) %>%
       sf::st_transform(3857)
 
@@ -82,7 +82,7 @@ plot_dispersions <- function(dispersions,
                  map_type = "dark",
                  map_token = mapbox_token)
 
-    basemap_layer <- basemap_gglayer(ext, map_res = 10, force=F)
+    basemap_layer <- basemap_gglayer(ext, map_res = 0.4, dpi=1000, force=F)
 
     plt <- ggplot() +
       basemap_layer +
@@ -118,6 +118,7 @@ plot_dispersions <- function(dispersions,
             panel.grid.minor=element_blank(),
             plot.margin = margin(0, 0, 0, 0, "cm"))
 
+
     width <- 12
     # Automatically adjust height
     height <- width * (top-bottom)/(right-left)
@@ -127,14 +128,89 @@ plot_dispersions <- function(dispersions,
 }
 
 
-plot_contributions <- function(contributions, folder='results'){
+plot_contributions <- function(contributions, folder='results', suffix=''){
 
   dir.create(folder, F, T)
 
-
+  # Plot time series
+  filename <- file.path(folder, sprintf('contributions_ts_%s.png', suffix))
   ggplot(contributions %>%
            filter(grepl('Jakarta', receptor_id))) +
     geom_line(aes(date_reception, contribution, col=plant_id)) +
-    facet_wrap(~receptor_id)
+    facet_wrap(~receptor_id) +
+    rcrea::theme_crea()
+
+  ggsave(filename, width=12, height=8, dpi=300)
+
+  # Average bar chart
+  filename <- file.path(folder, sprintf('contributions_bar_region_%s.png', suffix))
+
+  # We plot for each ktonne per day
+  ratio <- 1e15
+
+  # Only keep region names with more than three cities and
+  # rename Region to "others" otherwise
+  contributions <- contributions %>%
+    mutate(region_short = case_when(
+      Region %in% (contributions %>%
+      distinct(Region, City, Kecamatan) %>%
+      group_by(Region) %>%
+      summarise(n=n()) %>%
+      filter(n >= 3) %>%
+      pull(Region)) ~ Region,
+      T ~ "Others"))
+
+
+  contributions %>%
+    mutate(contribution=replace_na(contribution, 0)) %>%
+    group_by(receptor_id, location_name=paste(City,"-",Kecamatan), region_short, plant_id) %>%
+    summarise(contribution = mean(contribution)) %>%
+    ggplot() +
+    geom_bar(aes(contribution * ratio,
+                 fct_reorder(location_name, contribution, sum),
+                 fill=gsub(" power station", "", plant_id, ignore.case = T)),
+             stat='identity') +
+    facet_grid(fct_reorder(region_short, -contribution, sum) ~ .,
+               scales='free',
+               space = "free") +
+    rcrea::theme_crea() +
+    # start x axis on zero
+    scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
+                       limits = c(0, NA)) +
+    rcrea::scale_fill_crea_d(name=NULL) +
+    labs(x='µg/m³',
+         y=NULL,
+         title='Power plant contribution to air pollution in various locations',
+         subtitle='Ambient concentration attributed to individual power plants for one thousand tonne / day emitted',
+         fill=NULL,
+         caption='Source: CREA analysis.') +
+    # fill legend on two rows underneath
+    # Make it smaller
+    guides(fill = guide_legend(nrow = 2)) +
+    theme(legend.position='bottom',
+        # remove facet boxes
+          panel.grid = element_blank(),
+          panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.background = element_rect(fill = NA, color = NA),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank(),
+          panel.border = element_rect(colour='#8cc9D0'),
+          strip.background = element_rect(colour='#8cc9D0', linetype='solid')
+        ) +
+        # reduce legend size
+        theme(legend.text=element_text(size=8),
+              legend.title=element_text(size=8),
+              legend.key.size = unit(0.5, "cm"),
+              legend.key.width = unit(0.5, "cm"),
+              legend.key.height = unit(0.2, "cm"),
+              legend.spacing.x = unit(0.1, "cm"),
+              legend.spacing.y = unit(0.1, "cm"),
+              legend.box.margin = margin(0, 0, 0, 0, "cm"),
+              legend.margin = margin(0, 0, 0, 0, "cm")) -> plt
+
+  print(plt)
+  ggsave(filename, width=12, height=24, plot=plt)
+  return(plt)
 
 }
