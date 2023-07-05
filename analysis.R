@@ -20,8 +20,6 @@ source('./diagnostics.R')
 date_from <- as.Date("2023-01-01")
 date_to <- as.Date("2023-01-08")
 dates <- seq.Date(date_from, date_to, by="day")
-folder <- "results/jakarta"
-dir.create(folder, F, T)
 options("rgdal_show_exportToProj4_warnings"="none")
 
 plants <- data.get_plants(as_sf=T)
@@ -49,15 +47,17 @@ dispersions <- readRDS('cache/dispersions.RDS')
 # Compute contributions
 contributions_100 <- get_contributions(
   dispersions=dispersions,
+  plants=plants,
   receptors=receptors,
-  height_m=100,
+  height_m=10,
   density_res=100
 )
 
 contributions_1000 <- get_contributions(
   dispersions=dispersions,
+  plants=plants,
   receptors=receptors,
-  height_m=100,
+  height_m=10,
   density_res=1000
 )
 
@@ -65,5 +65,7 @@ saveRDS(contributions_1000, 'cache/contributions.RDS')
 contributions <- readRDS('cache/contributions.RDS')
 
 # Plot results
+contributions=contributions_1000
+plot_contributions(contributions, folder='results')
 plot_contributions(contributions_100, folder='results', suffix='_100')
 plot_contributions(contributions_1000, folder='results', suffix='_1000')

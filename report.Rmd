@@ -5,40 +5,62 @@ date: "2023-07-04"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(sf)
+library(tictoc)
+library(lubridate)
+library(plotly)
+library(basemaps)
+library(creatrajs)
+library(ggplot2)
+
+readRenviron(".Renviron")
+
+source('./plot.R')
+source('./contribution.R')
+source('./utils.R')
+source('./dispersion.R')
+source('./data.R')
+source('./diagnostics.R')
+
 ```
 
 # Coal power plants
 
 ## Power plants considered
 
-```{r, echo=FALSE, fig.height=5, fig.width=10}
-plants <- get_plants(as_sf=F)
-knitr::kable(plants)
+We consider the following coal power plants in the Jakarta area:
+
+```{r, echo=FALSE}
+plants <- data.get_plants()
+plants
 ```
 
 ## Dispersion modeling
 
-We use HYSPLIT to model dispersion from each coal power plant, with the following parameters :
-- constant emission rate
-- each particle followed for four days
-- released at height based on stack height and plume rise
+We use HYSPLIT to model dispersion from each coal power plant, with the following parameters and assumptions :
+- constant emission rate;
+- each particle is followed for five days;
+- released at height based on stack height and estimated plume rise.
 
-Below is dispersion modeling example for Soralaya power plant on 1 January 2023.
+Below are dispersion modeling results for Suralaya power plant on 3 January 2023.
     
 ```{r, echo=FALSE, fig.height=5, fig.width=10}
-knitr::include_graphics("results/soralaya_20230201.png")
+knitr::include_graphics("results/suralaya_20230103.png")
 ```
     
     
 
 ## Attribution
 
-We then compute density of particles emitted by each power plant at each receptor location. The numbers obtained are transformed into a meaningful unit: µg/m3 for each µg emitted within a day by the power plant. For instance, if a power plants emits 10 tonnes of PM2.5 in a day, and the indicated contribution number is 1e-15, the resulting concentration at the receptor location is 0.01 µg/m3 (1e13 * 1e-15).
+We then compute the density of particles emitted by each power plant at each receptor location on any given day. We only consider particles below 10 meters.
 
 ```{r pressure, echo=FALSE}
-knitr::include_graphics("results/contribution.png")
+knitr::include_graphics("results/contributions_bar.png")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Limitations
+
+The dispersion modeling does not consider chemical reactions, and therefore does not account for the transformation of pollutants into secondary pollutants.

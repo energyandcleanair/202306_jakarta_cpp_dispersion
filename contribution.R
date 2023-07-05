@@ -10,9 +10,13 @@
 #' @export
 #'
 #' @examples
-get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jakarta", density_res=1000){
-
-  crs_utm = 32748
+get_contributions <- function(dispersions,
+                              receptors,
+                              plants,
+                              height_m=10,
+                              tz="Asia/Jakarta",
+                              density_res=1000,
+                              duration_hours=120){
 
   # Assert there is only one plant
   if(length(unique(dispersions$location_id)) > 1){
@@ -23,6 +27,7 @@ get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jak
         get_contributions(dispersions %>%
                           filter(location_id == !!location_id),
                           receptors,
+                          plants=plants,
                           height_m=height_m,
                           tz=tz)
     }) %>%
@@ -30,6 +35,13 @@ get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jak
 
     return(contributions)
   }
+
+  crs_utm = 32748
+  bbox_utm <- sf::st_bbox(receptors) %>%
+    sf::st_as_sfc() %>%
+    sf::st_transform(crs_utm) %>%
+    sf::st_buffer(100e3) %>% # Add 100km
+    sf::st_bbox()
 
   # Get plant_id
   plant_id <- unique(dispersions$location_id)
@@ -72,9 +84,7 @@ get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jak
     split(particles, date_group(particles$date_reception)),
     function(d_day){
       MASS::kde2d(d_day$x, d_day$y, n=c(density_res, density_res),
-                  lims=c(min(d_day$x), max(d_day$x),
-                         min(d_day$y), max(d_day$y)) *
-                    c(0.9, 1.1, 0.9, 1.1))
+                  lims=bbox[c(1,3,2,4)])
       })
 
   rasters <- lapply(names(densities), function(date_reception){
@@ -92,6 +102,10 @@ get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jak
       pull(ratio)
 
     r <- r * ratio
+
+    # Correct for number of simulation days
+    simulation_days <- duration_hours / 24
+    r <- r / simulation_days
 
     # Bring to volumetric density
     r <- r / height_m
@@ -116,5 +130,12 @@ get_contributions <- function(dispersions, receptors, height_m=100, tz="Asia/Jak
     bind_rows() %>%
     mutate(plant_id = !!plant_id)
 
-  return(receptor_densities)
+  # Convert to µg
+  contributions <- receptor_densities %>%
+    left_join(
+      as.data.frame(plants) %>%
+        select(plant_id=plants, emissions_t)) %>%
+    mutate(contribution_µg_m3=contribution * emissions_t * 1e12)
+
+  return(contributions)
 }

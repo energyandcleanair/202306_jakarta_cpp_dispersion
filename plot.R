@@ -133,20 +133,20 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
   dir.create(folder, F, T)
 
   # Plot time series
-  filename <- file.path(folder, sprintf('contributions_ts_%s.png', suffix))
-  ggplot(contributions %>%
-           filter(grepl('Jakarta', receptor_id))) +
-    geom_line(aes(date_reception, contribution, col=plant_id)) +
-    facet_wrap(~receptor_id) +
-    rcrea::theme_crea()
-
-  ggsave(filename, width=12, height=8, dpi=300)
+  # filename <- file.path(folder, sprintf('contributions_ts%s.png', suffix))
+  # ggplot(contributions %>%
+  #          filter(grepl('Jakarta', receptor_id))) +
+  #   geom_line(aes(date_reception, contribution, col=plant_id)) +
+  #   facet_wrap(~receptor_id) +
+  #   rcrea::theme_crea()
+  #
+  # ggsave(filename, width=12, height=8, dpi=300)
 
   # Average bar chart
-  filename <- file.path(folder, sprintf('contributions_bar_region_%s.png', suffix))
+  filename <- file.path(folder, sprintf('contributions_bar_region%s.png', suffix))
 
   # We plot for each ktonne per day
-  ratio <- 1e15
+
 
   # Only keep region names with more than three cities and
   # rename Region to "others" otherwise
@@ -162,15 +162,15 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
 
 
   contributions %>%
-    mutate(contribution=replace_na(contribution, 0)) %>%
+    mutate(contribution_µg_m3=replace_na(contribution_µg_m3, 0)) %>%
     group_by(receptor_id, location_name=paste(City,"-",Kecamatan), region_short, plant_id) %>%
-    summarise(contribution = mean(contribution)) %>%
+    summarise(contribution_µg_m3 = mean(contribution_µg_m3)) %>%
     ggplot() +
-    geom_bar(aes(contribution * ratio,
-                 fct_reorder(location_name, contribution, sum),
+    geom_bar(aes(contribution_µg_m3,
+                 fct_reorder(location_name, contribution_µg_m3, sum),
                  fill=gsub(" power station", "", plant_id, ignore.case = T)),
              stat='identity') +
-    facet_grid(fct_reorder(region_short, -contribution, sum) ~ .,
+    facet_grid(fct_reorder(region_short, -contribution_µg_m3, sum) ~ .,
                scales='free',
                space = "free") +
     rcrea::theme_crea() +
@@ -181,7 +181,7 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
     labs(x='µg/m³',
          y=NULL,
          title='Power plant contribution to air pollution in various locations',
-         subtitle='Ambient concentration attributed to individual power plants for one thousand tonne / day emitted',
+         subtitle='Ambient concentration attributed to individual power plants',
          fill=NULL,
          caption='Source: CREA analysis.') +
     # fill legend on two rows underneath
