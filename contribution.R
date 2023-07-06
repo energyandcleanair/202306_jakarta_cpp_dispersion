@@ -51,7 +51,7 @@ get_contributions <- function(dispersions,
   plant_dispersion <- dispersions
 
   # We use local day as a grouping date
-  date_group <- function(date, tz=tz, freq="day"){
+  date_group <- function(date, tz=tz, freq="hour"){
     # Convert hour in UTC to hour or day in local timezone
     date <- as.POSIXct(date, tz="UTC")
     date <- as.POSIXct(date, tz=tz)
@@ -82,30 +82,47 @@ get_contributions <- function(dispersions,
   # Convert particles to densities
   densities <- pbapply::pblapply(
     split(particles, date_group(particles$date_reception)),
-    function(d_day){
-      MASS::kde2d(d_day$x, d_day$y, n=c(density_res, density_res),
-                  lims=bbox[c(1,3,2,4)])
+    function(particles_received_day){
+
+      MASS::kde2d(particles_received_day$x,
+                  particles_received_day$y,
+                  n=c(density_res, density_res),
+                  lims=bbox_utm[c(1,3,2,4)])
       })
 
+
   rasters <- lapply(names(densities), function(date_reception){
+
     k <- densities[[date_reception]]
+
     r <- raster::raster(k, crs=crs_utm)
     # r is in density per m2 as shown below
     sum((r * raster::xres(r) * raster::yres(r))[])
 
+
     # Correct for particles above height_m that we ignored
-    ratio <- dispersions %>%
+    ratio_height <- dispersions %>%
       filter(date_group(date_reception) == !!date_reception) %>%
       summarise(
         ratio = sum(height <= !!height_m) / n()
       ) %>%
       pull(ratio)
 
-    r <- r * ratio
+    r <- r * ratio_height
 
-    # Correct for number of simulation days
-    simulation_days <- duration_hours / 24
-    r <- r / simulation_days
+
+    # # Ratio emission
+    # # How many emitted particles are considered in that reception date
+    # # vs how many is emitted in a day or hour
+    plant_dispersion %>%
+      filter(date_group(date_reception)==!!date_reception) %>%
+      group_by(date_group(date_emission)) %>%
+      summarise(n_distinct=n_distinct(particle_i))
+
+    # Correct for number of simulation days or hours
+    # simulation_days <- duration_hours / 24
+    # r <- r / simulation_days
+    # r <- r / duration_hours
 
     # Bring to volumetric density
     r <- r / height_m
@@ -123,7 +140,7 @@ get_contributions <- function(dispersions,
     receptor_density = tibble(receptors) %>% dplyr::select(-c(geometry))
     receptor_density$contribution <- raster::extract(r, receptors_utm)
     receptor_density$date_reception <- as.POSIXct(attr(r, "date_reception"))
-    receptor_density$unit <- "day.m-3"
+    receptor_density$unit <- "m-3"
     receptor_density <- receptor_density %>% rename(receptor_id=id)
     return(receptor_density)
   }) %>%
@@ -135,7 +152,14 @@ get_contributions <- function(dispersions,
     left_join(
       as.data.frame(plants) %>%
         select(plant_id=plants, emissions_t)) %>%
-    mutate(contribution_µg_m3=contribution * emissions_t * 1e12)
+    mutate(contribution_µg_m3 = contribution * emissions_t / 24 * 1e12) %>%
+    group_by(receptor_id, plant_id, date_recepetion=date(date_reception)) %>%
+    summarise(contribution_µg_m3 = mean(contribution_µg_m3))
+
+  # Add receptor infos
+  contributions <- contributions %>%
+    left_join(as.data.frame(receptors) %>%
+                rename(receptor_id=id))
 
   return(contributions)
 }

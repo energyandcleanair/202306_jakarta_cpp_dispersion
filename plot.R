@@ -145,8 +145,6 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
   # Average bar chart
   filename <- file.path(folder, sprintf('contributions_bar_region%s.png', suffix))
 
-  # We plot for each ktonne per day
-
 
   # Only keep region names with more than three cities and
   # rename Region to "others" otherwise
@@ -181,7 +179,7 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
     labs(x='µg/m³',
          y=NULL,
          title='Power plant contribution to air pollution in various locations',
-         subtitle='Ambient concentration attributed to individual power plants',
+         # subtitle='Ambient concentration attributed to individual power plants',
          fill=NULL,
          caption='Source: CREA analysis.') +
     # fill legend on two rows underneath
