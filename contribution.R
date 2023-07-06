@@ -96,9 +96,11 @@ get_contributions <- function(dispersions,
     k <- densities[[date_reception]]
 
     r <- raster::raster(k, crs=crs_utm)
-    # r is in density per m2 as shown below
+  # r is in density per m2 as shown below
     sum((r * raster::xres(r) * raster::yres(r))[])
 
+    # Bring to volumetric density
+    r <- r / height_m
 
     # Correct for particles above height_m that we ignored
     ratio_height <- dispersions %>%
@@ -117,15 +119,12 @@ get_contributions <- function(dispersions,
     plant_dispersion %>%
       filter(date_group(date_reception)==!!date_reception) %>%
       group_by(date_group(date_emission)) %>%
-      summarise(n_distinct=n_distinct(particle_i))
+      summarise(n_distinct=n_distinct(particle_i), n=n())
 
     # Correct for number of simulation days or hours
     # simulation_days <- duration_hours / 24
     # r <- r / simulation_days
     # r <- r / duration_hours
-
-    # Bring to volumetric density
-    r <- r / height_m
 
     attr(r, "date_reception") <- date_reception
     return(r)
@@ -147,12 +146,15 @@ get_contributions <- function(dispersions,
     bind_rows() %>%
     mutate(plant_id = !!plant_id)
 
+  hours_per_year = 365 * 24
+  µg_per_tonne = 1e12
+
   # Convert to µg
   contributions <- receptor_densities %>%
     left_join(
       as.data.frame(plants) %>%
         select(plant_id=plants, emissions_t)) %>%
-    mutate(contribution_µg_m3 = contribution * emissions_t / 24 * 1e12) %>%
+    mutate(contribution_µg_m3 = contribution * emissions_t * µg_per_tonne / hours_per_year * duration_hours) %>%
     group_by(receptor_id, plant_id, date_recepetion=date(date_reception)) %>%
     summarise(contribution_µg_m3 = mean(contribution_µg_m3))
 
