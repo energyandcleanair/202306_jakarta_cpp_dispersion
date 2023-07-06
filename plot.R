@@ -161,20 +161,23 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
 
   contributions %>%
     mutate(contribution_µg_m3=replace_na(contribution_µg_m3, 0)) %>%
-    group_by(receptor_id, location_name=paste(City,"-",Kecamatan), region_short, plant_id) %>%
-    summarise(contribution_µg_m3 = mean(contribution_µg_m3)) %>%
-    ggplot() +
+    group_by(receptor_id, location_name=paste(City,"-",Kecamatan), region_short,
+             plant_name=gsub(" power station", "", plant_id, ignore.case = T)) %>%
+    summarise(contribution_µg_m3 = mean(contribution_µg_m3)) -> plot_data
+
+  ggplot(plot_data) +
     geom_bar(aes(contribution_µg_m3,
                  fct_reorder(location_name, contribution_µg_m3, sum),
-                 fill=gsub(" power station", "", plant_id, ignore.case = T)),
+                 fill=fct_reorder(plant_name, contribution_µg_m3, sum)),
              stat='identity') +
-    facet_grid(fct_reorder(region_short, -contribution_µg_m3, sum) ~ .,
+    facet_grid(fct_reorder(region_short, -contribution_µg_m3, mean) ~ .,
                scales='free',
                space = "free") +
     rcrea::theme_crea() +
     # start x axis on zero
     scale_x_continuous(expand = expansion(mult=c(0, 0.1)),
-                       limits = c(0, NA)) +
+                       limits = c(0, NA),
+                       breaks=seq(1,100)) +
     rcrea::scale_fill_crea_d(name=NULL) +
     labs(x='µg/m³',
          y=NULL,
@@ -184,7 +187,7 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
          caption='Source: CREA analysis.') +
     # fill legend on two rows underneath
     # Make it smaller
-    guides(fill = guide_legend(nrow = 2)) +
+    guides(fill = guide_legend(nrow = 2, reverse=T, byrow=TRUE)) +
     theme(legend.position='bottom',
         # remove facet boxes
           panel.grid = element_blank(),
@@ -194,8 +197,8 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
           panel.grid.major.y = element_blank(),
           panel.grid.minor.y = element_blank(),
           panel.border = element_rect(colour='#8cc9D0'),
-          strip.background = element_rect(colour='#8cc9D0', linetype='solid')
-        ) +
+          strip.background = element_rect(colour='#8cc9D0', linetype='solid')) +
+    theme(panel.grid.major.x = element_line(color='grey90')) +
         # reduce legend size
         theme(legend.text=element_text(size=8),
               legend.title=element_text(size=8),
