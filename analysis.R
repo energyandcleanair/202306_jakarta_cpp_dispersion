@@ -17,13 +17,19 @@ source('./data.R')
 source('./diagnostics.R')
 
 
+
+plants <- data.get_plants(as_sf=T)
+receptors <- data.get_receptors(as_sf=T)
+
 date_from <- as.Date("2023-01-01")
+
+
+
 date_to <- as.Date("2023-01-08")
 dates <- seq.Date(date_from, date_to, by="day")
 options("rgdal_show_exportToProj4_warnings"="none")
 
-plants <- data.get_plants(as_sf=T)
-receptors <- data.get_receptors(as_sf=T)
+
 
 dispersions <- get_dispersions(
   plants = plants,
