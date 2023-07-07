@@ -2,11 +2,12 @@
 title: "Jakarta coal power plants contribution"
 author: "Hubert Thieriot - CREA"
 date: "2023-07-04"
-output: pdf_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(knitr.graphics.error = FALSE)
 library(tidyverse)
 library(sf)
 library(tictoc)
@@ -55,10 +56,31 @@ knitr::include_graphics("results/suralaya_20230103.png")
 
 ## Attribution
 
-We then compute the density of particles emitted by each power plant at each receptor location on any given day. We only consider particles below 10 meters.
+### Density computation
+We then compute the density of particles emitted by each power plant at each receptor location on any given **reception** hour, including 5 full days of emissions. 
+
+- we use UTM coordinates
+- we filter for particles below 10 meters
+- we compute density using MASS::kde2d function
 
 ```{r pressure, echo=FALSE}
-knitr::include_graphics("results/contributions_bar.png")
+knitr::include_graphics(normalizePath("results/contributions_bar.png"))
+```
+
+### Scaling to a meaningful unit
+
+By default, the density is computed so that the integral of the density over the whole area is equal to one. Given that we use UTM coordinates, this means the density is expressed in m-2.
+
+To bring it to a useful unit, we perform several operations:
+
+- we scale down the density to account for particles that were above 10 meters;
+- we divide by the threshold height itself (i.e. 10m) to obtained the density in m-3.
+
+In any given cell, the obtained raster therefore indicates the concentration of 
+
+
+```{r, echo=FALSE}
+knitr::include_graphics("results/contributions_bar_region.png")
 ```
 
 ### Limitations
