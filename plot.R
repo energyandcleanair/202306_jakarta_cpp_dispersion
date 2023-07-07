@@ -185,7 +185,7 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
          # subtitle='Ambient concentration attributed to individual power plants',
          fill=NULL,
          caption='Source: CREA analysis.') +
-    # fill legend on two rows underneath
+    # fill legend on two rows underneath in reverse order
     # Make it smaller
     guides(fill = guide_legend(nrow = 2, reverse=T, byrow=TRUE)) +
     theme(legend.position='bottom',
@@ -209,6 +209,7 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
               legend.spacing.y = unit(0.1, "cm"),
               legend.box.margin = margin(0, 0, 0, 0, "cm"),
               legend.margin = margin(0, 0, 0, 0, "cm")) -> plt
+
 
   print(plt)
   ggsave(filename, width=12, height=24, plot=plt)
