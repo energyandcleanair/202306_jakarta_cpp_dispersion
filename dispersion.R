@@ -48,18 +48,15 @@ get_dispersions <- function(plants, dates,
       }
 
       dispersion <- dispersion %>%
-        mutate(date_reception = as.Date(date) + lubridate::hours(hour))
-
-      emission_date <- dispersion %>%
+        mutate(date_reception = as.Date(date) + lubridate::hours(hour)) %>%
         group_by(particle_i) %>%
-        summarise(date_emission=min(as.Date(date) + lubridate::hours(hour - 1)))
-
-      dispersion <- dispersion %>%
-        left_join(emission_date) %>%
+        mutate(date_emission=min(as.Date(date) + lubridate::hours(hour - 1))) %>%
+        ungroup() %>%
         mutate(age = date_reception - date_emission) %>%
         # Keep all particles for the exact same time so that
         # At any point in time the number of particles is constant
         filter(age <= duration_hours)
+
 
       if(plot){
         plot_dispersion(data=dispersion,

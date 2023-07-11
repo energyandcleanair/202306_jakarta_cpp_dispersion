@@ -19,3 +19,31 @@ data.get_receptors <- function(as_sf=T){
   }
   return(receptors)
 }
+
+data.get_bbox <- function(
+  mode="indonesia",
+  receptors=data.get_receptors(),
+  receptors_buffer_km=100,
+  crs=3857){
+
+  if(mode=="indonesia"){
+     lon_min <- 95.293026
+     lon_max <- 141.021805
+     lat_min <- -10.359987
+     lat_max <- 5.479820
+     sf::st_polygon(list(rbind(c(lon_min, lat_min),
+                                   c(lon_max, lat_min),
+                                   c(lon_max, lat_max),
+                                   c(lon_min, lat_max),
+                                   c(lon_min, lat_min)))) %>%
+       sf::st_sfc(crs=4326) %>%
+       sf::st_transform(crs) %>%
+       sf::st_bbox()
+  }else if(mode=="receptors"){
+    receptors %>%
+      sf::st_transform(crs=3857) %>%
+      sf::st_buffer(receptors_buffer_km * 1000) %>%
+      sf::st_transform(crs) %>%
+      sf::st_bbox()
+  }
+}

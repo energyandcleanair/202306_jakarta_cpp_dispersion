@@ -129,18 +129,13 @@ plot_dispersions <- function(dispersions,
 
 
 plot_contributions <- function(contributions, folder='results', suffix=''){
+  plot_contributions_average_bar(contributions=contributions, folder=folder, suffix=suffix)
+  plot_contributions_ts(contributions=contributions, folder=folder, suffix=suffix)
+}
+
+plot_contributions_average_bar <- function(contributions, folder='results', suffix=''){
 
   dir.create(folder, F, T)
-
-  # Plot time series
-  # filename <- file.path(folder, sprintf('contributions_ts%s.png', suffix))
-  # ggplot(contributions %>%
-  #          filter(grepl('Jakarta', receptor_id))) +
-  #   geom_line(aes(date_reception, contribution, col=plant_id)) +
-  #   facet_wrap(~receptor_id) +
-  #   rcrea::theme_crea()
-  #
-  # ggsave(filename, width=12, height=8, dpi=300)
 
   # Average bar chart
   filename <- file.path(folder, sprintf('contributions_bar_region%s.png', suffix))
@@ -210,9 +205,95 @@ plot_contributions <- function(contributions, folder='results', suffix=''){
               legend.box.margin = margin(0, 0, 0, 0, "cm"),
               legend.margin = margin(0, 0, 0, 0, "cm")) -> plt
 
-
-  print(plt)
   ggsave(filename, width=12, height=24, plot=plt)
+  return(plt)
+
+}
+
+plot_contributions_ts <- function(contributions, folder='results', suffix=''){
+
+  dir.create(folder, F, T)
+
+  filename <- file.path(folder, sprintf('contributions_ts%s.png', suffix))
+
+  contributions %>%
+    group_by(Region) %>%
+    filter(receptor_id == min(receptor_id)) %>%
+    select(receptor_id, Region, City, Kecamatan, Address, plant_id, date_reception, value=contribution_µg_m3) %>%
+    ungroup() %>%
+    tidyr::complete(nesting(receptor_id, Region, City, Kecamatan, Address),
+                    plant_id,
+                    date_reception=seq(min(date_reception), max(date_reception), by="hour"),
+                    fill=list(value=0)
+                    ) %>%
+    mutate(plant_name=gsub(" power station", "", plant_id, ignore.case = T)) -> plot_data
+
+
+
+  plot_data %>%
+    # 24-hr rolling average)
+    group_by(receptor_id, Region, City, Kecamatan, Address, plant_name,
+             # date_reception=as.POSIXct(date(date_reception))
+             date_reception
+             ) %>%
+    # summarise(value=mean(value)) %>%
+    arrange(date_reception) %>%
+    mutate(value_24=zoo::rollmean(value, 24, fill=NA, align='right', na.rm=T)) %>%
+    ungroup() %>%
+    mutate(plant_name=fct_reorder(plant_name, value, sum),
+           receptor_id=fct_reorder(receptor_id, -value, mean)) -> plot_data24
+
+
+  ggplot(plot_data24) +
+    geom_area(aes(date_reception, value, fill=plant_name)) +
+    facet_wrap(~receptor_id, scales = 'free_y', ncol = 1) +
+    rcrea::theme_crea() +
+    # start x axis on zero
+    scale_x_datetime(date_breaks='1 week',
+                     date_minor_breaks = '1 day',
+                     date_labels = "%d %b") +
+    scale_y_continuous(expand = expansion(mult=c(0, 0.1)),
+                       limits = c(0, NA)) +
+    rcrea::scale_fill_crea_d(name=NULL) +
+    labs(y='µg/m³',
+         x=NULL,
+         title='Power plant contribution to air pollution in various locations',
+         # subtitle='Ambient concentration attributed to individual power plants',
+         fill=NULL,
+         caption='Source: CREA analysis.') +
+    # fill legend on two rows underneath in reverse order
+    # Make it smaller
+    guides(fill = guide_legend(nrow = 2, reverse=T, byrow=TRUE)) +
+    theme(legend.position='bottom',
+          # remove facet boxes
+          panel.grid = element_blank(),
+          panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.background = element_rect(fill = NA, color = NA),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank(),
+          panel.border = element_rect(colour='#8cc9D0'),
+          strip.background = element_rect(colour='#8cc9D0', linetype='solid')) +
+    theme(panel.grid.major.x = element_line(color='grey90'),
+          panel.grid.minor.x = element_line(color='grey90')
+          ) +
+    # facet title as left text, no background or border, color #35416C, bold
+    theme(strip.text = element_text(size=8, face='bold', color='#35416C', hjust=0),
+          strip.background = element_blank(),
+          strip.placement = 'outside') +
+    # reduce legend size
+    theme(legend.text=element_text(size=8),
+          legend.title=element_text(size=8),
+          legend.key.size = unit(0.5, "cm"),
+          legend.key.width = unit(0.5, "cm"),
+          legend.key.height = unit(0.2, "cm"),
+          legend.spacing.x = unit(0.1, "cm"),
+          legend.spacing.y = unit(0.1, "cm"),
+          legend.box.margin = margin(0, 0, 0, 0, "cm"),
+          legend.margin = margin(0, 0, 0, 0, "cm")) -> plt
+
+
+  ggsave(filename, width=12, height=10, plot=plt)
   return(plt)
 
 }

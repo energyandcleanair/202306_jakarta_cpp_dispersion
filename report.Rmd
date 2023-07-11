@@ -16,6 +16,7 @@ library(plotly)
 library(basemaps)
 library(creatrajs)
 library(ggplot2)
+library(knitr)
 
 readRenviron(".Renviron")
 
@@ -26,6 +27,8 @@ source('./dispersion.R')
 source('./data.R')
 source('./diagnostics.R')
 
+plants <- data.get_plants()
+receptors <- data.get_receptors()
 ```
 
 # Coal power plants
@@ -34,9 +37,14 @@ source('./diagnostics.R')
 
 We consider the following coal power plants in the Jakarta area:
 
-```{r, echo=FALSE}
-plants <- data.get_plants()
-plants
+
+```{r, echo=FALSE, results='asis'}
+kable(plants %>% as.data.frame() %>% select(name=plants, units=plant_units))
+```
+
+
+```{r, echo=FALSE, fig.height=5, fig.width=10}
+knitr::include_graphics("results/map.png")
 ```
 
 ## Dispersion modeling
@@ -63,9 +71,7 @@ We then compute the density of particles emitted by each power plant at each rec
 - we filter for particles below 10 meters
 - we compute density using MASS::kde2d function
 
-```{r pressure, echo=FALSE}
-knitr::include_graphics(normalizePath("results/contributions_bar.png"))
-```
+
 
 ### Scaling to a meaningful unit
 
