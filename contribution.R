@@ -13,14 +13,15 @@
 get_contributions <- function(dispersions,
                               receptors,
                               plants,
-                              height_m=10,
+                              height_m=100,
                               tz="Asia/Jakarta",
                               density_res=1000,
                               duration_hours=120,
                               return_rasters=F,
                               bbox_mode="receptors",
                               crs_utm = 32748,
-                              diagnostics_folder=NULL){
+                              diagnostics_folder=NULL,
+                              force_valid_dates=NULL){
 
   if(length(unique(dispersions$location_id)) > 1){
     # Run and concatenate for each plant
@@ -70,6 +71,9 @@ get_contributions <- function(dispersions,
     summarise(count=n())
 
   valid_dates <- count$date_group[count$count == max(count$count)]
+  if(!is.null(force_valid_dates)){
+    valid_dates <- intersect(force_valid_dates, unique(date(plant_dispersion$date_reception)))
+  }
 
   # Remove last hour which is the first hour of the next date
   # valid_dates <- valid_dates[valid_dates != max(valid_dates)]
@@ -98,13 +102,13 @@ get_contributions <- function(dispersions,
   densities <- lapply(
     split(particles, date_group(particles$date_reception)),
     function(particles_received_day){
+      print(unique(particles_received_day$date_reception))
 
       MASS::kde2d(particles_received_day$x,
                   particles_received_day$y,
                   n=c(density_res, density_res),
                   lims=bbox_utm[c(1,3,2,4)])
       })
-
 
   # if(!is.null(diagnostics_folder)){
   #   dir.create(diagnostics_folder, showWarnings = FALSE, recursive = T)

@@ -13,11 +13,13 @@ source('./dispersion.R')
 source('./data.R')
 
 readRenviron(".Renviron")
-
-date_from <- as.Date("2023-01-08")
-date_to <- as.Date("2023-01-30") #lubridate::today() - lubridate::days(3)
+remove_small_cache_files(min_bytes=2 * 2^20)
+date_from <- date("2023-01-01")
+date_to <- date("2023-07-01")
 dates <- seq.Date(date_from, date_to, by="day")
 duration_hours <- 120
+# met_type <- 'gfs0.25'
+met_type <- 'gdas1'
 
 plants <- data.get_plants()
 
@@ -27,16 +29,16 @@ for(i in 1:nrow(plants)){
 
     location_id <- plants$plants[[i]]
     geometry <- plants$geometry[i]
+    print(location_id)
 
     stack_height <- plants$stack_height[[i]]
     release_height_low <- plants$release_height_low[[i]]
     height <- round(release_height_low * 2 - stack_height)
 
-    # pbapply::pblapply(dates, function(date){
-      dispersion.get(dates=dates,
+    dispersion.get(dates=dates,
       location_id=location_id,
         geometry=geometry,
-        met_type="gdas1",
+        met_type=met_type,
         heights=height,
         duration_hour=duration_hours,
         direction="forward",
@@ -45,8 +47,7 @@ for(i in 1:nrow(plants)){
         convert_to_raster = F,
         cache_folder='cache',
         parallel=T,
-        mc.cores=max(1, parallel::detectCores() - 1))[[1]]
-    # })
+        mc.cores=max(1, parallel::detectCores() - 2))
 
     gc()
 }

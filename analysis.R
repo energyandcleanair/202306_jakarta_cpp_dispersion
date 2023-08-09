@@ -23,9 +23,9 @@ plants <- data.get_plants(as_sf = T)
 receptors <- data.get_receptors(as_sf = T)
 duration_hours <- 120
 duration_days <- ceiling(duration_hours / 24)
-date_from <- as.Date("2023-01-01")
+date_from <- as.Date("2023-08-01")
 date_to <- get_latest_continous_date(plants = plants)
-date_to <- "2023-01-31"
+# date_to <- "2023-01-31"
 
 dates <- seq.Date(date_from, date_to, by = "day")
 options("rgdal_show_exportToProj4_warnings" = "none")
@@ -35,6 +35,7 @@ options("rgdal_show_exportToProj4_warnings" = "none")
 # -> rolling date_range
 
 bbox_modes <- c("receptors", "indonesia")
+bbox_modes <- c("receptors") #, "indonesia")
 
 for (bbox_mode in bbox_modes) {
 
