@@ -47,6 +47,9 @@ meas_stations %>%
 ggsave(file.path(folder, "pm25_2023.png"), width=10, height=6)
 
 
+
+
+
 meas_stations %>%
   filter(process_id == 'city_hour_mad') %>%
   filter(date >= '2020-01-01') %>%
@@ -80,7 +83,7 @@ ggsave(file.path(folder, "pm25_2020_2023.png"), width=10, height=6)
 
 
 
-# Contribution ------------------------------------------------------------
+# Dates of interest ------------------------------------------------------------
 dates_of_interest <- meas_stations %>%
   filter(date >= '2023-01-01') %>%
   filter(process_id == 'city_hour_mad') %>%
@@ -90,13 +93,20 @@ dates_of_interest <- meas_stations %>%
   arrange(desc(value)) %>%
   filter(count > 12) %>%
   head(5) %>%
+  write_csv(file.path(folder, "2023_episodes.csv")) %>%
   pull(date)
+
+# dates_of_interest <- "2023-08-06"
+
 
 plants <- data.get_plants(as_sf = T)
 receptors <- data.get_receptors(as_sf = T) %>%
   filter(grepl("Jakarta", City))
 
-# date_of_interest <- as.Date("2023-08-07")
+# library(mapview)
+# mapview(receptors)
+
+# Compute contributions ---------------------------------------------------
 duration_hours <- 120
 duration_days <- ceiling(duration_hours / 24)
 
@@ -109,20 +119,9 @@ dates_dispersion <- lapply(dates_of_interest, function(date_of_interest) {
   unique()
 
 
-# date_from <- date_of_interest - days(duration_days)
-# date_to <- date_of_interest
-# dates <- seq.Date(date_from, date_to, by = "day")
 options("rgdal_show_exportToProj4_warnings" = "none")
 met_type <- 'gdas1'
-
-
-# For memory reasons, we can only process a few dates at a time
-# -> rolling date_range
-
-bbox_mode <- c("receptors")
-# date_range <- seq(date_from, date_from + duration_days, by = "day")
-dispersions <- NULL
-contributions <- NULL
+bbox_mode <- c("plant_receptors")
 
 
 dispersions <- get_dispersions(
@@ -132,13 +131,20 @@ dispersions <- get_dispersions(
   met_type = met_type
 )
 
-# Plot dispersions
-# plot_dispersions(
-#   dispersions = dispersions,
-#   plants = plants,
-#   dates = sample(dates, 3),
-#   folder = "results"
-# )
+# # Plot dispersions
+plot_dispersions(
+  dispersions = dispersions,
+  plants = plants,
+  receptors=receptors,
+  dates = dates_dispersion,
+  folder = folder,
+  bbox_mode = "plants_receptors",
+  buffer_km=100,
+  particle_modulo_10=c(1,3,5,7,9),
+  every_n_hour=2,
+  particle_size=0.0007
+)
+
 
 # Diagnostics
 # diagnose_dispersions(dispersions)
@@ -153,8 +159,10 @@ contributions <- get_contributions(
   receptors = receptors,
   height_m = 10,
   density_res = 1000,
-  bbox_mode = "indonesia",
-  force_valid_dates = dates_of_interest
+  bbox_mode = bbox_mode,
+  buffer_km=100,
+  force_valid_dates = dates_of_interest,
+  diagnostics_folder = "diagnostics"
 )
 
 # Move date_range by one day
@@ -183,20 +191,22 @@ contributions %>%
   geom_bar(aes(fill=plant_id),
            stat='identity',
            show.legend = F) +
-  geom_text(aes(label=round(contribution_µg_m3,2)),
-            hjust=1.1,
+  geom_text(aes(label=round(contribution_µg_m3,1)),
+            # hjust=1.1,
+            hjust=-0.1,
             size=3,
-            color='white') +
+            # color='white'
+            ) +
   facet_wrap(~episode, scales='free_y') +
   rcrea::theme_crea() +
   scale_y_reordered() +
-  scale_x_continuous(limits=c(0, NA), expand = expansion(c(0, 0.1))) +
+  scale_x_continuous(limits=c(0, NA), expand = expansion(c(0, 0.12))) +
   labs(title='Contribution of coal-fired power plants to Jakarta PM2.5 levels',
-       subtitle='Values for 7 August 2023',
+       # subtitle='Values for 6 August 2023',
        caption='Source: CREA analysis.',
        y=NULL,
        x="µg/m3") +
   rcrea::scale_fill_crea_d()
 
-ggsave(file.path(folder, "contribution.png"), width=10, height=6)
+ggsave(file.path(folder, "contribution_2023_episodes.png"), width=12, height=8)
 

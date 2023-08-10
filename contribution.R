@@ -19,6 +19,7 @@ get_contributions <- function(dispersions,
                               duration_hours=120,
                               return_rasters=F,
                               bbox_mode="receptors",
+                              buffer_km=100,
                               crs_utm = 32748,
                               diagnostics_folder=NULL,
                               force_valid_dates=NULL){
@@ -35,21 +36,32 @@ get_contributions <- function(dispersions,
                           height_m=height_m,
                           tz=tz,
                           bbox_mode=bbox_mode,
+                          buffer_km=buffer_km,
                           crs_utm=crs_utm,
-                          diagnostics_folder=diagnostics_folder)
+                          diagnostics_folder=diagnostics_folder,
+                          force_valid_dates=force_valid_dates)
     }) %>%
       bind_rows()
 
     return(contributions)
   }
 
-  bbox_utm <- data.get_bbox(mode=bbox_mode,
-                            receptors=receptors,
-                            crs = crs_utm)
+
 
   # Get plant_id
   plant_id <- unique(dispersions$location_id)
   print(plant_id)
+  plant <- plants %>%
+    filter(plants==!!plant_id)
+
+
+  bbox_utm <- data.get_bbox(mode=bbox_mode,
+                            receptors=receptors,
+                            plants=plants,
+                            plant=plant,
+                            buffer_km=buffer_km,
+                            crs = crs_utm
+  )
 
   # Rename for debugging convenience
   plant_dispersion <- dispersions
@@ -72,7 +84,7 @@ get_contributions <- function(dispersions,
 
   valid_dates <- count$date_group[count$count == max(count$count)]
   if(!is.null(force_valid_dates)){
-    valid_dates <- intersect(force_valid_dates, unique(date(plant_dispersion$date_reception)))
+    valid_dates <- force_valid_dates
   }
 
   # Remove last hour which is the first hour of the next date

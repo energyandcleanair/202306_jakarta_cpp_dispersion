@@ -23,7 +23,9 @@ data.get_receptors <- function(as_sf=T){
 data.get_bbox <- function(
   mode="indonesia",
   receptors=data.get_receptors(),
-  receptors_buffer_km=100,
+  plants=data.get_plants(),
+  plant=NULL,
+  buffer_km=100,
   crs=3857){
 
   if(mode=="indonesia"){
@@ -42,7 +44,23 @@ data.get_bbox <- function(
   }else if(mode=="receptors"){
     receptors %>%
       sf::st_transform(crs=3857) %>%
-      sf::st_buffer(receptors_buffer_km * 1000) %>%
+      sf::st_buffer(buffer_km * 1000) %>%
+      sf::st_transform(crs) %>%
+      sf::st_bbox()
+  }else if(mode=="plant_receptors"){
+    bind_rows(
+      plant,
+      receptors) %>%
+      sf::st_transform(crs=3857) %>%
+      sf::st_buffer(buffer_km * 1000) %>%
+      sf::st_transform(crs) %>%
+      sf::st_bbox()
+  }else if(mode=="plants_receptors"){
+    bind_rows(
+      plants,
+      receptors) %>%
+      sf::st_transform(crs=3857) %>%
+      sf::st_buffer(buffer_km * 1000) %>%
       sf::st_transform(crs) %>%
       sf::st_bbox()
   }
