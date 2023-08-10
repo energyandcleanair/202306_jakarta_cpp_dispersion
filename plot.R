@@ -1,9 +1,15 @@
 plot_dispersions <- function(dispersions,
                              plants,
+                             receptors,
                              dates=NULL,
                              location_id=NULL,
-                             size_km=5000,
-                             folder='results'){
+                             bbox_mode="indonesia",
+                             buffer_km=5000,
+                             folder='results',
+                             particle_size=0.0005,
+                             # Parameters to reduce the number of particles shown
+                             particle_modulo_10=c(1),
+                             every_n_hour=2){
 
   if(!is.null(location_id)){
     dispersions <- dispersions %>%
@@ -14,10 +20,12 @@ plot_dispersions <- function(dispersions,
     return(pbapply::pblapply(location_ids, function(location_id){
       plot_dispersions(dispersions=dispersions,
                        plants=plants,
+                       receptors=receptors,
                        dates=dates,
                        location_id=location_id,
-                       size_km=size_km,
-                       folder=folder)
+                       folder=folder,
+                       bbox_mode=bbox_mode,
+                       buffer_km=buffer_km)
     }))
   }
 
@@ -39,42 +47,27 @@ plot_dispersions <- function(dispersions,
 
     # Reducing number of particles
     data_lite <- data %>%
-      filter(as.numeric(particle_i) %% 10 %in% c(1),
+      filter(as.numeric(particle_i) %% 10 %in% particle_modulo_10,
               hour <= 120,
-             as.numeric(hour) %% 2 == 0
+             as.numeric(hour) %% every_n_hour == 0
              )
 
-    # Indonesia bbox in 3857
-    lon_min <- 95.293026
-    lon_max <- 141.021805
-    lat_min <- -10.359987
-    lat_max <- 5.479820
-    ext <- sf::st_polygon(list(rbind(c(lon_min, lat_min),
-                                  c(lon_max, lat_min),
-                                  c(lon_max, lat_max),
-                                  c(lon_min, lat_max),
-                                  c(lon_min, lat_min)))) %>%
-      sf::st_sfc(crs=4326) %>%
-      sf::st_transform(3857)
+    if(nrow(data_lite) == 0){
+      next
+    }
 
-    left <- sf::st_coordinates(ext)[1,1]
-    right <- sf::st_coordinates(ext)[2,1]
-    bottom <- sf::st_coordinates(ext)[1,2]
-    top <- sf::st_coordinates(ext)[3,2]
+    bbox <- data.get_bbox(mode=bbox_mode,
+                          receptors=receptors,
+                          plants=plants,
+                          plant=plant,
+                          buffer_km=buffer_km,
+                          crs = 3857
+    )
 
-    # Centre on power plant
-    # coords <- st_coordinates(sf::st_transform(geometry, 3857))
-    # size <- size_km * 1000
-    # left <- coords[1] - size/2
-    # right <- coords[1] + size/2
-    # bottom <- coords[2] - size/2
-    # top <- coords[2] + size/2
-    # square <- st_polygon(list(rbind(c(left, top),
-    #                                 c(right, top),
-    #                                 c(right, bottom),
-    #                                 c(left, bottom),
-    #                                 c(left, top))))
-    # ext <- st_sfc(square, crs = 3857)
+    left <- bbox$xmin
+    right <- bbox$xmax
+    bottom <- bbox$ymin
+    top <- bbox$ymax
 
     mapbox_token <- "pk.eyJ1IjoiZGFubnloYXJ0b25vIiwiYSI6ImNrdnJpbXFzZTdxYzczMm1zbm1lMzhzd2oifQ.xutXbhbN3Zrl99lZGyf3Zg"
 
@@ -82,13 +75,37 @@ plot_dispersions <- function(dispersions,
                  map_type = "dark",
                  map_token = mapbox_token)
 
-    basemap_layer <- basemap_gglayer(ext, map_res = 0.4, dpi=1000, force=F)
+    basemap_layer <- basemap_gglayer(bbox, map_res = 0.7, dpi=300, force=F, maxpixels=5e6)
+
+    # # Try ggmaps
+    # # Convert bbox back to lat/lon
+    # bbox_4326 <- sf::st_as_sf(
+    #   sf::st_bbox(bbox) %>%
+    #     sf::st_as_sfc() %>%
+    #     sf::st_transform(4326)
+    # ) %>%
+    # sf::st_bbox()
+    #
+    # left <- bbox_4326$xmin
+    # right <- bbox_4326$xmax
+    # bottom <- bbox_4326$ymin
+    # top <- bbox_4326$ymax
+    #
+    # register_google(key = "[your key]")
+    # map_data <- get_openstreetmap(bbox_4326,
+    #                     zoom = 12, # Change the zoom level as needed
+    #                     source = "osm", # This is for OpenStreetMap
+    #                     # maptype = "terrain"
+    #                     ) # You can change the type as required
+    #
+    # plt <- ggmap(map_data)
+
 
     plt <- ggplot() +
       basemap_layer +
       scale_fill_identity() +
       geom_sf(data=data_lite,
-              size=0.0005,
+              size=particle_size,
               alpha=0.4,
               aes(col=hour),
               show.legend=F
@@ -122,7 +139,7 @@ plot_dispersions <- function(dispersions,
     width <- 12
     # Automatically adjust height
     height <- width * (top-bottom)/(right-left)
-    ggsave(file.path(folder, sprintf("%s_%s.png", tolower(location_id), format(as.Date(date), '%Y%m%d'))),
+    ggsave(file.path(folder, sprintf("%s_%s.jpg", tolower(location_id), format(as.Date(date), '%Y%m%d'))),
                      plot=plt, width=width, height=height, dpi = 300)
   }
 }
