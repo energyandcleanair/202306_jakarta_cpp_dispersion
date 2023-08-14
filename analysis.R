@@ -34,8 +34,9 @@ options("rgdal_show_exportToProj4_warnings" = "none")
 # For memory reasons, we can only process a few dates at a time
 # -> rolling date_range
 
-bbox_modes <- c("receptors", "indonesia")
-bbox_modes <- c("receptors") #, "indonesia")
+# bbox_modes <- c("receptors", "indonesia")
+# bbox_modes <- c("receptors") #, "indonesia")
+bbox_modes <- c("plant_receptors")
 
 for (bbox_mode in bbox_modes) {
 
