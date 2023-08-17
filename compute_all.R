@@ -13,9 +13,9 @@ source('./dispersion.R')
 source('./data.R')
 
 readRenviron(".Renviron")
-remove_small_cache_files(min_bytes=2 * 2^20)
+remove_small_cache_files(min_bytes=2.5 * 2^20)
 date_from <- date("2023-01-01")
-date_to <- date("2023-07-01")
+date_to <- date("2023-08-12")
 dates <- seq.Date(date_from, date_to, by="day")
 duration_hours <- 120
 # met_type <- 'gfs0.25'

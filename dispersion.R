@@ -1,6 +1,7 @@
 get_dispersions <- function(plants, dates,
                             cache_folder='cache',
                             cache_only=F,
+                            parallel=F,
                             plot=F,
                             plot_folder='results',
                             met_type='gdas1',
@@ -47,16 +48,26 @@ get_dispersions <- function(plants, dates,
         return(NULL)
       }
 
-      dispersion <- dispersion %>%
-        mutate(date_reception = as.Date(date) + lubridate::hours(hour)) %>%
-        group_by(particle_i) %>%
-        mutate(date_emission=min(as.Date(date) + lubridate::hours(hour - 1))) %>%
-        ungroup() %>%
-        mutate(age = date_reception - date_emission) %>%
-        # Keep all particles for the exact same time so that
-        # At any point in time the number of particles is constant
-        filter(age <= duration_hours)
+      # # dplyr version (slow)
+      # dispersion <- dispersion %>%
+      #   mutate(date_reception = as.Date(date) + lubridate::hours(hour)) %>%
+      #   group_by(particle_i) %>%
+      #   mutate(date_emission=min(as.Date(date) + lubridate::hours(hour - 1))) %>%
+      #   ungroup() %>%
+      #   mutate(age = date_reception - date_emission) %>%
+      #   # Keep all particles for the exact same time so that
+      #   # At any point in time the number of particles is constant
+      #   filter(age <= duration_hours)
 
+      # data.table version (fast)
+      dispersion <- as.data.table(dispersion)
+      dispersion[, date := as.POSIXct(date)]
+      dispersion[, date_reception := date + (hour * 3600)]
+      dispersion[, date_emission := min(date + ((hour - 1) * 3600)), by = particle_i]
+      dispersion[, date := NULL]
+      dispersion[, age := as.numeric(difftime(date_reception, date_emission, units = "hours"))]
+      dispersion <- dispersion[age <= duration_hours]
+      dispersion <- tibble(dispersion)
 
       if(plot){
         plot_dispersion(data=dispersion,
@@ -72,7 +83,5 @@ get_dispersions <- function(plants, dates,
       mutate(location_id = location_id)
     }) %>%
   bind_rows()
-
-
 
 }

@@ -13,7 +13,7 @@
 get_contributions <- function(dispersions,
                               receptors,
                               plants,
-                              height_m=100,
+                              height_m=10,
                               tz="Asia/Jakarta",
                               density_res=1000,
                               duration_hours=120,
@@ -22,7 +22,9 @@ get_contributions <- function(dispersions,
                               buffer_km=100,
                               crs_utm = 32748,
                               diagnostics_folder=NULL,
-                              force_valid_dates=NULL){
+                              force_valid_dates=NULL,
+                              parallel=T,
+                              cores=parallel::detectCores()-2){
 
   if(length(unique(dispersions$location_id)) > 1){
     # Run and concatenate for each plant
@@ -39,13 +41,26 @@ get_contributions <- function(dispersions,
                           buffer_km=buffer_km,
                           crs_utm=crs_utm,
                           diagnostics_folder=diagnostics_folder,
-                          force_valid_dates=force_valid_dates)
-    }) %>%
-      bind_rows()
+                          force_valid_dates=force_valid_dates,
+                          return_rasters=return_rasters,
+                          parallel=parallel,
+                          cores=cores)
+        })
 
+    if(!return_rasters){
+      contributions <- bind_rows(contributions)
+    }else{
+      contributions <- unlist(contributions, recursive=F)
+    }
     return(contributions)
   }
 
+  # Select lapply based on parallel
+  if(parallel){
+    lapply_fun <- function(x, ...){parallel::mclapply(x, ..., mc.cores=cores)}
+  }else{
+    lapply_fun <- lapply
+  }
 
 
   # Get plant_id
@@ -54,6 +69,9 @@ get_contributions <- function(dispersions,
   plant <- plants %>%
     filter(plants==!!plant_id)
 
+  if(nrow(plant)==0){
+    stop(glue("Missing data for {plant_id}"))
+  }
 
   bbox_utm <- data.get_bbox(mode=bbox_mode,
                             receptors=receptors,
@@ -80,7 +98,7 @@ get_contributions <- function(dispersions,
   # Only keep dates with "sufficient" data
   count <- plant_dispersion %>%
     group_by(date_group=date(date_group(date_reception))) %>%
-    summarise(count=n())
+    dplyr::summarise(count=n())
 
   valid_dates <- count$date_group[count$count == max(count$count)]
   if(!is.null(force_valid_dates)){
@@ -111,43 +129,48 @@ get_contributions <- function(dispersions,
   ratio <- nrow(particles) / nrow(plant_dispersion)
 
   # Convert particles to densities
-  densities <- lapply(
+  densities <- lapply_fun(
     split(particles, date_group(particles$date_reception)),
     function(particles_received_day){
       print(unique(particles_received_day$date_reception))
 
-      MASS::kde2d(particles_received_day$x,
-                  particles_received_day$y,
-                  n=c(density_res, density_res),
-                  lims=bbox_utm[c(1,3,2,4)])
+      tryCatch({
+        MASS::kde2d(particles_received_day$x,
+                    particles_received_day$y,
+                    n=c(density_res, density_res),
+                    lims=bbox_utm[c(1,3,2,4)])
+      }, error=function(x){
+        print(glue("Failed to build density"))
+        return(NULL)
       })
+    }
+  )
 
-  # if(!is.null(diagnostics_folder)){
-  #   dir.create(diagnostics_folder, showWarnings = FALSE, recursive = T)
-  #   for(i in seq_along(densities)){
-  #     # plot density in a png
-  #     png(paste0(diagnostics_folder, "/",
-  #                plant_id, "_density_",
-  #                names(densities)[[i]], ".png"))
-  #     image(densities[[i]])
-  #     dev.off()
-  #   }
-  # }
+  # Remove NULL from densities
+  densities <- densities[!sapply(densities, is.null)]
 
+  # Factors to scale to µg/m3
+  hours_per_year = 365 * 24
+  µg_per_tonne = 1e12
+  emissions_t <- plant$emissions_t
 
-  rasters <- lapply(names(densities), function(date_reception){
+  rasters <- lapply_fun(names(densities), function(date_reception){
 
     k <- densities[[date_reception]]
 
     r <- raster::raster(k, crs=crs_utm)
+
     # r is in density per m2 as shown below
-    sum((r * raster::xres(r) * raster::yres(r))[])
+    # sum((r * raster::xres(r) * raster::yres(r))[])
 
     # Bring to volumetric density
     r <- r / height_m
 
     # Correct for particles above height_m and outside bbox that we ignored
     r <- r * ratio
+
+    # Convert to µg/m3
+    r <- r * emissions_t * µg_per_tonne / hours_per_year * duration_hours
 
     attr(r, "date_reception") <- date_reception
     return(r)
@@ -176,35 +199,21 @@ get_contributions <- function(dispersions,
     }
   }
 
-
-
-  # Extract densities at locations
-  receptor_densities <- lapply(rasters, function(r){
+  # Extract contributions at locations
+  receptor_densities <- lapply_fun(rasters, function(r){
     receptor_density = tibble(receptors) %>% dplyr::select(-c(geometry))
-    receptor_density$contribution <- raster::extract(r, receptors_utm)
+    receptor_density$contribution_µg_m3 <- raster::extract(r, receptors_utm)
     receptor_density$date_reception <- as.POSIXct(attr(r, "date_reception"))
-    receptor_density$unit <- "m-3"
     receptor_density <- receptor_density %>% rename(receptor_id=id)
     return(receptor_density)
   }) %>%
     bind_rows() %>%
     mutate(plant_id = !!plant_id)
 
-  hours_per_year = 365 * 24
-  µg_per_tonne = 1e12
-
-  # Convert to µg
+  # Aggregate and add infos
   contributions <- receptor_densities %>%
-    left_join(
-      as.data.frame(plants) %>%
-        select(plant_id=plants, emissions_t),
-      by='plant_id') %>%
-    mutate(contribution_µg_m3 = contribution * emissions_t * µg_per_tonne / hours_per_year * duration_hours) %>%
     group_by(receptor_id, plant_id, date_reception) %>%
-    summarise(contribution_µg_m3 = mean(contribution_µg_m3))
-
-  # Add receptor infos
-  contributions <- contributions %>%
+    summarise(contribution_µg_m3 = sum(contribution_µg_m3)) %>%
     left_join(as.data.frame(receptors) %>%
                 rename(receptor_id=id),
               by='receptor_id')
