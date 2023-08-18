@@ -24,7 +24,9 @@ get_contributions <- function(dispersions,
                               diagnostics_folder=NULL,
                               force_valid_dates=NULL,
                               parallel=T,
-                              cores=parallel::detectCores()-2){
+                              cores=parallel::detectCores()-2,
+                              cache_folder=NULL,
+                              force=F){
 
   if(length(unique(dispersions$location_id)) > 1){
     # Run and concatenate for each plant
@@ -44,14 +46,12 @@ get_contributions <- function(dispersions,
                           force_valid_dates=force_valid_dates,
                           return_rasters=return_rasters,
                           parallel=parallel,
-                          cores=cores)
+                          cores=cores,
+                          cache_folder=cache_folder,
+                          force=force)
         })
 
-    if(!return_rasters){
-      contributions <- bind_rows(contributions)
-    }else{
-      contributions <- unlist(contributions, recursive=F)
-    }
+    contributions <- flatten_contributions(contributions, return_rasters=return_rasters)
     return(contributions)
   }
 
@@ -73,13 +73,6 @@ get_contributions <- function(dispersions,
     stop(glue("Missing data for {plant_id}"))
   }
 
-  bbox_utm <- data.get_bbox(mode=bbox_mode,
-                            receptors=receptors,
-                            plants=plants,
-                            plant=plant,
-                            buffer_km=buffer_km,
-                            crs = crs_utm
-  )
 
   # Rename for debugging convenience
   plant_dispersion <- dispersions
@@ -105,18 +98,84 @@ get_contributions <- function(dispersions,
     valid_dates <- force_valid_dates
   }
 
-  # Remove last hour which is the first hour of the next date
-  # valid_dates <- valid_dates[valid_dates != max(valid_dates)]
-  # if(length(valid_dates) != 1){
-  #   "Missing data"
-  # }
+  lapply(valid_dates, function(date){
 
-  plant_dispersion <- plant_dispersion %>%
-    filter(date(date_group(date_reception)) %in% valid_dates)
+    plant_date_dispersion <- plant_dispersion %>%
+      filter(date(date_group(date_reception)) == date)
+
+
+    get_contributions_at_plant_date(
+      plant_id=plant_id,
+      date=date,
+      plant_date_dispersion=plant_date_dispersion,
+      receptors=receptors,
+      plant=plant,
+      plants=plants,
+      height_m=height_m,
+      tz=tz,
+      density_res=density_res,
+      duration_hours=duration_hours,
+      return_rasters=return_rasters,
+      bbox_mode=bbox_mode,
+      buffer_km=buffer_km,
+      crs_utm = crs_utm,
+      diagnostics_folder=diagnostics_folder,
+      parallel=parallel,
+      cores=cores,
+      cache_folder = cache_folder,
+      force=force
+    )
+  }) %>%
+    flatten_contributions(return_rasters=return_rasters)
+
+
+
+
+}
+
+
+get_contributions_at_plant_date <- function(
+    plant_id,
+    date,
+    plant_date_dispersion,
+    receptors,
+    plant,
+    plants,
+    height_m=10,
+    tz="Asia/Jakarta",
+    density_res=1000,
+    duration_hours=120,
+    return_rasters=F,
+    bbox_mode="plant_receptors",
+    buffer_km=100,
+    crs_utm = 32748,
+    diagnostics_folder=NULL,
+    parallel=T,
+    cores=parallel::detectCores()-2,
+    cache_folder=NULL,
+    force=F
+){
+
+  if(!is.null(cache_folder)){
+    raster_suffix <- ifelse(return_rasters, "_withraster", "")
+    filename <- glue("contributions_{plant_id}_{date}_{bbox_mode}_{height_m}_{duration_hours}_{buffer_km}_{density_res}{raster_suffix}.RDS")
+    filepath <- file.path(cache_folder, filename)
+    if(file.exists(filepath) && !force){
+      return(readRDS(filepath))
+    }
+  }
+
+  bbox_utm <- data.get_bbox(mode=bbox_mode,
+                            receptors=receptors,
+                            plants=plants,
+                            plant=plant,
+                            buffer_km=buffer_km,
+                            crs = crs_utm
+  )
 
   # Build density underneath height_m
   # and within bbox
-  particles <- plant_dispersion %>%
+  particles <- plant_date_dispersion %>%
     filter(height <= height_m) %>%
     st_as_sf(coords=c("lon", "lat"), crs=4326) %>%
     st_transform(crs_utm) %>%
@@ -126,7 +185,24 @@ get_contributions <- function(dispersions,
            y = st_coordinates(.)[,2])
 
   # ratio of particles considered vs particles emitted
-  ratio <- nrow(particles) / nrow(plant_dispersion)
+  ratio <- nrow(particles) / nrow(plant_date_dispersion)
+
+  # Select lapply based on parallel
+  if(parallel){
+    lapply_fun <- function(x, ...){parallel::mclapply(x, ..., mc.cores=cores)}
+  }else{
+    lapply_fun <- lapply
+  }
+
+  date_group <- function(date, tz=tz, freq="hour"){
+    # Convert hour in UTC to hour or day in local timezone
+    date <- as.POSIXct(date, tz="UTC")
+    date <- as.POSIXct(date, tz=tz)
+    if(freq=="day"){
+      date <- as.Date(date)
+    }
+    return(date)
+  }
 
   # Convert particles to densities
   densities <- lapply_fun(
@@ -174,7 +250,7 @@ get_contributions <- function(dispersions,
 
     attr(r, "date_reception") <- date_reception
     return(r)
-    })
+  })
 
 
   receptors_utm <- receptors %>%
@@ -219,8 +295,23 @@ get_contributions <- function(dispersions,
               by='receptor_id')
 
   if(return_rasters){
-    return(list(rasters=rasters, contributions=contributions))
-  }else{
-    return(contributions)
+    contributions <- (list(rasters=rasters, contributions=contributions))
   }
+
+  if(!is.null(cache_folder)){
+    saveRDS(contributions, filepath)
+  }
+
+  return(contributions)
+}
+
+flatten_contributions <- function(contributions, return_rasters){
+    if(!return_rasters){
+      contributions <- bind_rows(contributions)
+    }else{
+      flat_rasters <- unlist(lapply(contributions, function(item) item$rasters))
+      flat_contributions <- bind_rows(lapply(contributions, function(item) item$contributions))
+      contributions <- list(rasters = flat_rasters, contributions = flat_contributions)
+    }
+    return(contributions)
 }

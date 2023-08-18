@@ -478,19 +478,24 @@ plot_contributions_ts <- function(contributions, folder = "results", suffix = ""
   return(plt)
 }
 
-plot_contribution_polygons <- function(
-    polygons,
+plot_contribution_contours <- function(
+    contours,
     plants,
     receptors,
     dates = NULL,
     location_id = NULL,
-    bbox_mode = "indonesia",
+    bbox_mode = "plants_receptors",
     buffer_km = 5000,
     folder = "results",
     frequency = "hour",
     prefix = NULL,
     add_title=T,
-    force=F
+    force=F,
+
+    # Scale parameter
+    conc_breaks = c(seq(0, 80, 5), 1000),
+    conc_max = 80,
+    conc_min = 5
 ) {
 
   geometry <- plants %>%
@@ -501,8 +506,13 @@ plot_contribution_polygons <- function(
   }
 
   if (is.null(dates)) {
-    dates <- unique(to_date(polygons$date_reception))
+    dates <- unique(to_date(contours$date_reception))
   }
+
+  time_suffix_formats <- list(
+    hour="%Y%m%d%H",
+    day="%Y%m%d"
+  )
 
   pbapply::pblapply(dates, function(date){
 
@@ -519,7 +529,7 @@ plot_contribution_polygons <- function(
     #     filter(to_date(date_reception) >= !!date - lubridate::hours(keep_n_hour),
     #            to_date(date_reception) <= !!date)
     # }else{
-    date_polygons <- polygons %>%
+    date_contours <- contours %>%
       filter(to_date(date_reception) == !!date) %>%
       sf::st_transform(3857)
 
@@ -549,21 +559,18 @@ plot_contribution_polygons <- function(
 
     basemap_layer <- basemap_gglayer(bbox, map_res = 0.7, dpi = 300, force = F, maxpixels = 5e6)
 
-    breaks <- c(seq(0, 50, 5), 1000)
-    library(RColorBrewer)
-    colors <- c(colorRampPalette(brewer.pal(9, "YlOrRd"))(length(breaks)-1),
-                "#000000")
-    colors[1] <- "#00000000"
-    max <- 50
-    min <- 5
+    # Setting an homogenised scale in µg/m3
+    # colors <- c(colorRampPalette(brewer.pal(9, "YlOrRd"))(length(conc_breaks)-1),
+    #             "#000000")
+    # colors[1] <- "#00000000"
 
     plt <- ggplot() +
       basemap_layer +
       scale_fill_identity() +
       new_scale_fill() + # we need one colour scale for the basemap and one for the contour
-      geom_sf(data = date_polygons %>%
-                mutate(color=case_when(sum < min ~ NA,
-                                       sum > max ~ max,
+      geom_sf(data = date_contours %>%
+                mutate(color=case_when(sum < conc_min ~ NA,
+                                       sum > conc_max ~ conc_max,
                                        T ~ sum)),
               alpha = 0.4,
               aes(fill = color),
@@ -571,8 +578,16 @@ plot_contribution_polygons <- function(
               show.legend = F,
               # alpha = 0.5
               ) +
-      # scale_fill_distiller(palette = "Reds") +
-      scale_fill_distiller(limits=c(min,max), palette="YlOrRd", direction=1,
+      geom_sf(
+        data = geometry,
+        fill = "#8cc9D0",
+        col = "white",
+        size = 2,
+        shape = 24
+      ) +
+      scale_fill_distiller(limits=c(conc_min, conc_max),
+                           palette="YlOrRd",
+                           direction=1,
                            na.value = NA) +
       coord_sf(
         xlim = c(left, right),
@@ -594,12 +609,6 @@ plot_contribution_polygons <- function(
         panel.grid.minor = element_blank(),
         plot.margin = margin(t=0, r=0, b=0, l=0, "pt")
       )
-
-
-    time_suffix_formats <- list(
-      hour="%Y%m%d%H",
-      day="%Y%m%d"
-    )
 
     if(add_title){
       plt <- plt +
@@ -632,7 +641,7 @@ plot_contribution_polygons <- function(
 plot_concentrations <- function(folder,
                                 meas = NULL,
                                 date_from = "2023-08-01",
-                                use_cache = T,
+                                use_cache = F,
                                 date_type = "hour",
                                 running_hours = 24,
                                 cache_folder = "cache") {
@@ -643,7 +652,7 @@ plot_concentrations <- function(folder,
       meas <- readRDS(file_cache)
     } else {
       process_id <- ifelse(date_type == "day", "city_day_mad", "city_hour_mad")
-      meas <- rcrea::measurements(poll = "pm25", city = "Jakarta", date_from = "2023-01-01", process_id = process_id)
+      meas <- read_csv(glue("https://api.energyandcleanair.org/v1/measurements?city_name=Jakarta&process_id={process_id}&source=airnow&date_from={date_from}&format=csv&pollutant=pm25"))
       saveRDS(meas, file_cache)
     }
   }
@@ -653,11 +662,10 @@ plot_concentrations <- function(folder,
 
   if (date_type == "hour") {
     meas <- meas %>%
+      dplyr::select(pollutant, date, value) %>%
       tidyr::complete(date = seq(min(date), max(date), by = "hour"),
-                      nesting(location_id, location_name),
-                      process_id,
-                      poll,
-      fill=list(value=NA)) %>%
+                      pollutant,
+                      fill=list(value=NA)) %>%
       rcrea::utils.running_average(average_width = running_hours, average_by = date_type)
   }
 
@@ -693,9 +701,9 @@ plot_concentrations <- function(folder,
       theme(plot.margin = margin(t = 10, r = 10, b = 40, l = 10, unit = "pt")) -> plt
 
     filename <- file.path(folder, sprintf("concentration_%s_%s.png", date_type, strftime(date, ifelse(date_type == "day", "%Y%m%d", "%Y%m%d%H"))))
-    ggsave("results/video/concentration_hour_2023080117_2.png", plt, width=12, height=4, dpi=300)
+    # ggsave("results/video/concentration_hour_2023080117_2.png", plt, width=12, height=4, dpi=300)
     rcrea::quicksave(filename, plot=plt, logo_negative=T, logo_scale=2,
-                     logo_vjust=-0.3, logo_hjust=0.67, scale =1,
+                     logo_vjust=-0.3, logo_hjust=0.67, scale=1,
                      width=12, height=4, preview=F, dpi=300)
   })
 }
