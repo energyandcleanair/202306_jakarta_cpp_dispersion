@@ -517,6 +517,7 @@ plot_contribution_contours <- function(
   pbapply::pblapply(dates, function(date){
 
     filepath <- file.path(folder, sprintf("contour_%s.jpg",  format(date, time_suffix_formats[[frequency]])))
+    print(filepath)
     if(file.exists(filepath) & !force){
       return(filepath)
     }
@@ -644,7 +645,8 @@ plot_concentrations <- function(folder,
                                 use_cache = F,
                                 date_type = "hour",
                                 running_hours = 24,
-                                cache_folder = "cache") {
+                                cache_folder = "cache",
+                                force=F) {
 
   if (is.null(meas)) {
     file_cache <- file.path(cache_folder, sprintf("concentration_%s.rds", date_type))
@@ -675,7 +677,16 @@ plot_concentrations <- function(folder,
     pull(date) %>%
     unique()
 
+  # Sort descending
+  dates <- dates[order(dates, decreasing = T)]
+
   pbapply::pblapply(dates, function(date) {
+
+    filename <- file.path(folder, sprintf("concentration_%s_%s.png", date_type, strftime(date, ifelse(date_type == "day", "%Y%m%d", "%Y%m%d%H"))))
+    if(file.exists(filename) & !force){
+      return(filename)
+    }
+
     ggplot(meas, aes(date, value)) +
       geom_line(col=rcrea::pal_crea[["Orange"]]) +
       geom_point(data=function(x){
@@ -700,8 +711,7 @@ plot_concentrations <- function(folder,
       scale_x_datetime(date_labels = "%d %b") +
       theme(plot.margin = margin(t = 10, r = 10, b = 40, l = 10, unit = "pt")) -> plt
 
-    filename <- file.path(folder, sprintf("concentration_%s_%s.png", date_type, strftime(date, ifelse(date_type == "day", "%Y%m%d", "%Y%m%d%H"))))
-    # ggsave("results/video/concentration_hour_2023080117_2.png", plt, width=12, height=4, dpi=300)
+
     rcrea::quicksave(filename, plot=plt, logo_negative=T, logo_scale=2,
                      logo_vjust=-0.3, logo_hjust=0.67, scale=1,
                      width=12, height=4, preview=F, dpi=300)
