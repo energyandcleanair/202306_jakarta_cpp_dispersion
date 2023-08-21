@@ -138,8 +138,9 @@ create_frames(folder_frames=file.path(folder, "frames"),
               folder_concentrations=file.path(folder, "concentrations"),
               date_from=date_from, force=F)
 
-create_video(folder_frames = file.path(folder, "frames"),
-             folder_video = file.path(folder, "video"))
+create_videos(folder_frames = folder_frames,
+              folder_contours = folder_contours,
+              folder_video = folder_video)
 # create_frames(folder_frames=file.path(folder, "frames"),
 #               folder_contours=file.path(folder, "contours"),
 #               folder_concentrations=file.path(folder, "concentrations"),
