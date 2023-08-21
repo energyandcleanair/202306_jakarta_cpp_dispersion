@@ -35,12 +35,15 @@ met_type <- 'gdas1'
 bbox_mode <- c("plants_receptors")
 folder <- "results/video"
 folder_frames <- "results/video/frames"
+folder_concentrations <- "results/video/concentrations"
+folder_contours <- "results/video/contours"
 folder_video <- "results/video/video"
+
 dir.create(folder)
-dir.create(file.path(folder, "frames"), recursive = T)
-dir.create(file.path(folder, "contours"), recursive = T)
-dir.create(file.path(folder, "concentrations"), recursive = T)
-dir.create(file.path(folder, "video"), recursive = T)
+dir.create(folder_frames)
+dir.create(folder_concentrations)
+dir.create(folder_contours)
+dir.create(folder_video)
 
 
 duration_hours <- 120

@@ -682,7 +682,7 @@ plot_concentrations <- function(folder,
 
   pbapply::pblapply(dates, function(date) {
 
-    filename <- file.path(folder, sprintf("concentration_%s_%s.png", date_type, strftime(date, ifelse(date_type == "day", "%Y%m%d", "%Y%m%d%H"))))
+    filename <- file.path(folder, sprintf("concentration_%s_%s.jpg", date_type, strftime(date, ifelse(date_type == "day", "%Y%m%d", "%Y%m%d%H"))))
     if(file.exists(filename) & !force){
       return(filename)
     }

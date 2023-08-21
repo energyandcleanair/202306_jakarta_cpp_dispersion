@@ -7,7 +7,7 @@ create_frame <- function(folder_frames, folder_contours, folder_concentrations, 
     time_suffix <- format(date, time_suffix_formats[[frequency]])
     file_frame <- file.path(folder_frames, sprintf("frame_%s.jpg", time_suffix))
     file_map <- file.path(folder_contours, sprintf("contour_%s.jpg", time_suffix))
-    file_plot <- file.path(folder_concentrations, sprintf("concentration_%s_%s.png", frequency, time_suffix))
+    file_plot <- file.path(folder_concentrations, sprintf("concentration_%s_%s.jpg", frequency, time_suffix))
 
     if(file.exists(file_frame) & !force){
       return(file_frame)
@@ -32,16 +32,17 @@ create_frame <- function(folder_frames, folder_contours, folder_concentrations, 
     width <- image_info(img)$width
 
     # If height or width is an odd number, resize
-    if(height %% 2 != 0){
-      height <- height + 1
-    }
-    if(width %% 2 != 0){
-      width <- width + 1
-    }
-
-
-    # Double the size to be sure it's divisible by 2
-    magick::image_write(image_resize(img, glue("{width}x{height}")), file_frame)
+    # if(height %% 2 != 0){
+    #   height <- height + 1
+    # }
+    # if(width %% 2 != 0){
+    #   width <- width + 1
+    # }
+    #
+    #
+    # # Double the size to be sure it's divisible by 2
+    # magick::image_write(image_resize(img, glue("{width}x{height}")), file_frame)
+    magick::image_write(img, file_frame)
     gc()
 }
 
@@ -76,6 +77,7 @@ create_video <- function(folder_frames, folder_video){
     av::av_encode_video(
       # sort files by name
       list.files(folder_frames, '*.jpg', full.names=T) %>% sort(),
+      vfilter="pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
       framerate = 18,
       output = file.path(folder_video, 'video_ac.mp4'))
 
