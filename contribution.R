@@ -99,38 +99,35 @@ get_contributions <- function(dispersions,
   }
 
   lapply(valid_dates, function(date){
-
+    print(date)
     plant_date_dispersion <- plant_dispersion %>%
       filter(date(date_group(date_reception)) == date)
 
-
-    get_contributions_at_plant_date(
-      plant_id=plant_id,
-      date=date,
-      plant_date_dispersion=plant_date_dispersion,
-      receptors=receptors,
-      plant=plant,
-      plants=plants,
-      height_m=height_m,
-      tz=tz,
-      density_res=density_res,
-      duration_hours=duration_hours,
-      return_rasters=return_rasters,
-      bbox_mode=bbox_mode,
-      buffer_km=buffer_km,
-      crs_utm = crs_utm,
-      diagnostics_folder=diagnostics_folder,
-      parallel=parallel,
-      cores=cores,
-      cache_folder = cache_folder,
-      force=force
-    )
+    tryCatch({
+      get_contributions_at_plant_date(
+        plant_id=plant_id,
+        date=date,
+        plant_date_dispersion=plant_date_dispersion,
+        receptors=receptors,
+        plant=plant,
+        plants=plants,
+        height_m=height_m,
+        tz=tz,
+        density_res=density_res,
+        duration_hours=duration_hours,
+        return_rasters=return_rasters,
+        bbox_mode=bbox_mode,
+        buffer_km=buffer_km,
+        crs_utm = crs_utm,
+        diagnostics_folder=diagnostics_folder,
+        parallel=parallel,
+        cores=cores,
+        cache_folder = cache_folder,
+        force=force
+      )
+    }, error=function(error){return(NULL)})
   }) %>%
     flatten_contributions(return_rasters=return_rasters)
-
-
-
-
 }
 
 

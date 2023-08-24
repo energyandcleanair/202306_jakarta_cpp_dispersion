@@ -68,15 +68,20 @@ create_frames <- function(folder_frames,
 }
 
 
-create_videos <- function(folder_frames, folder_video, folder_contours, basename="video"){
+create_videos <- function(folder_frames, folder_video, folder_contours, folder_concentrations, basename="video"){
 
     # Version with both contours and concentrations
     filepath_video <- file.path(folder_video, paste0(basename, '.mp4'))
+    
+    
+    
+    
+    
     # av::av_encode_video(
     #   # sort files by name
     #   list.files(folder_frames, '*.jpg', full.names=T) %>% sort(),
-    #   vfilter="pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
-    #   framerate = 18,
+    #   vfilter="format=yuv420p;pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
+    #   framerate = 24,
     #   output = filepath_video)
 
     # Use command instead
@@ -85,16 +90,23 @@ create_videos <- function(folder_frames, folder_video, folder_contours, basename
       pattern_type="glob",
       vfilter="pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2",
       pix_fmt="yuv420p",
-      c_v="libx264"
+      c_v="libx264",
+      others="-profile:v high10 -level:v 4.0"
     )
 
-    system(glue("ffmpeg -y -framerate {args$framerate} -pattern_type {args$pattern_type} -i \"{folder_frames}/*.jpg\" -vf \"{args$vfilter}\" -pix_fmt {args$pix_fmt}  -c:v {args$c_v} {filepath_video}"))
+    system(glue("ffmpeg -y -framerate {args$framerate} -pattern_type {args$pattern_type} -i \"{folder_frames}/*.jpg\" -vf \"{args$vfilter}\"  -c:v {args$c_v} {args$others} -pix_fmt {args$pix_fmt} {filepath_video}"))
 
 
     # Create a version with contours only
     filepath_video_contours <- file.path(folder_video, paste0(basename, '_contours.mp4'))
-    system(glue("ffmpeg -y -framerate {args$framerate} -pattern_type {args$pattern_type} -i \"{folder_contours}/*.jpg\" -vf \"{args$vfilter}\" -pix_fmt {args$pix_fmt}  -c:v {args$c_v} {filepath_video_contours}"))
+    system(glue("ffmpeg -y -framerate {args$framerate} -pattern_type {args$pattern_type} -i \"{folder_contours}/*.jpg\" -vf \"{args$vfilter}\"  -c:v {args$c_v} {args$others} -pix_fmt {args$pix_fmt} {filepath_video_contours}"))
+
 
     filepath_video_contours_wlogo <- file.path(folder_video, paste0(basename, '_contours_withlogo.mp4'))
     system(glue("ffmpeg -y -i {filepath_video_contours} -i data/crea_logo_negative.png -filter_complex \"[1:v]scale=300:-1[logo];[0:v][logo]overlay=W-w-10:H-h-10\" {filepath_video_contours_wlogo}"))
+
+
+    # Create a version with concentrations only
+    # filepath_video_concentrations <- file.path(folder_video, paste0(basename, '_concentrations.mp4'))
+    # system(glue("ffmpeg -y -framerate {args$framerate} -pattern_type {args$pattern_type} -i \"{folder_concentrations}/*.jpg\" -vf \"{args$vfilter}\"  -c:v {args$c_v} {args$others} -pix_fmt {args$pix_fmt} {filepath_video_concentrations}"))
 }

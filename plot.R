@@ -485,7 +485,7 @@ plot_contribution_contours <- function(
     dates = NULL,
     location_id = NULL,
     bbox_mode = "plants_receptors",
-    buffer_km = 5000,
+    buffer_km = 50,
     folder = "results",
     frequency = "hour",
     prefix = NULL,
@@ -493,9 +493,12 @@ plot_contribution_contours <- function(
     force=F,
 
     # Scale parameter
-    conc_breaks = c(seq(0, 80, 5), 1000),
-    conc_max = 80,
-    conc_min = 5
+    conc_max = 160,
+    conc_min = 20,
+    breaks_power = 0.5,
+
+    alpha_power = 0.3,
+    alpha_min = 0
 ) {
 
   geometry <- plants %>%
@@ -560,10 +563,18 @@ plot_contribution_contours <- function(
 
     basemap_layer <- basemap_gglayer(bbox, map_res = 0.7, dpi = 300, force = F, maxpixels = 5e6)
 
-    # Setting an homogenised scale in µg/m3
-    # colors <- c(colorRampPalette(brewer.pal(9, "YlOrRd"))(length(conc_breaks)-1),
-    #             "#000000")
-    # colors[1] <- "#00000000"
+    # Setting an power scale in µg/m3
+    breaks_ratios <- seq(0, 1, length.out =10) ^ breaks_power
+    conc_breaks <- conc_min + (conc_max - conc_min) * breaks_ratios
+
+
+    colors <- colorRampPalette(brewer.pal(9, "YlOrRd"))(length(conc_breaks)-2)
+    colors <- c("#FFFFFF", colors, "#000000")
+
+    alpha_values <- seq(alpha_min, 1, length.out = length(colors))
+    alpha_values <- (alpha_values^alpha_power) * 0.7
+    colors_alpha <- mapply(adjustcolor, colors, alpha = alpha_values)
+
 
     plt <- ggplot() +
       basemap_layer +
@@ -573,7 +584,6 @@ plot_contribution_contours <- function(
                 mutate(color=case_when(sum < conc_min ~ NA,
                                        sum > conc_max ~ conc_max,
                                        T ~ sum)),
-              alpha = 0.4,
               aes(fill = color),
               col="transparent",
               show.legend = F,
@@ -586,10 +596,18 @@ plot_contribution_contours <- function(
         size = 2,
         shape = 24
       ) +
-      scale_fill_distiller(limits=c(conc_min, conc_max),
-                           palette="YlOrRd",
-                           direction=1,
-                           na.value = NA) +
+        scale_fill_gradientn(colors = colors_alpha,
+                             values = scales::rescale(conc_breaks),
+                             limits = c(conc_min, conc_max),
+                             na.value = NA,
+                             oob = scales::squish,
+                             guide = "colourbar",
+                             aesthetics = "fill"
+        ) +
+      # scale_fill_distiller(limits=c(conc_min, conc_max),
+      #                      palette="YlOrRd",
+      #                      direction=1,
+      #                      na.value = NA) +
       coord_sf(
         xlim = c(left, right),
         ylim = c(bottom, top), expand = F
